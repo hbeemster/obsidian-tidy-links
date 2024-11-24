@@ -1,38 +1,51 @@
-import {Editor, MarkdownView, Plugin} from 'obsidian';
+import {App, Editor, MarkdownView, Modal, Plugin, Setting} from 'obsidian';
 
 
-import {App, Modal, Setting} from 'obsidian';
-
-export class TitleModal extends Modal {
+// -----------------------------------------------------------------------
+// InputModal
+// -----------------------------------------------------------------------
+export class InputModal extends Modal {
 	constructor(app: App, prompt: string, onSubmit: (result: string) => void) {
 		super(app);
-		// this.setTitle('Tidy Link');
+		this.setTitle(' ');
 
+		// -----------------------------------------------------------------------
+		this.scope.register([], 'Enter', (evt: KeyboardEvent) => {
+			if (evt.isComposing) {
+				return;
+			}
+				const actionBtn = document
+					.getElementsByClassName('mod-cta')
+					.item(0) as HTMLButtonElement | null;
+				actionBtn?.click();
+		});
+
+		// -----------------------------------------------------------------------
 		let result = '';
 		new Setting(this.contentEl)
 			.setName(prompt)
 			.addText((text) =>
 				text.onChange((value) => {
+					console.log(value);
 					result = value;
-					console.log(result);
 				}));
 
 		new Setting(this.contentEl)
 			.addButton((btn) =>
-				btn
-					.setButtonText('Submit')
+				btn.setButtonText('Submit')
 					.setCta()
 					.onClick(() => {
 						this.close();
-						console.log(result);
 						onSubmit(result);
 					}));
 	}
 }
 
-
+// -----------------------------------------------------------------------
+// TidyLinkPlugin
+// -----------------------------------------------------------------------
 export default class TidyLinkPlugin extends Plugin {
-
+	// -----------------------------------------------------------------------
 	async onload() {
 		// This adds an editor command that can perform some operation on the current editor instance
 		this.addCommand({
@@ -43,49 +56,43 @@ export default class TidyLinkPlugin extends Plugin {
 				let link: string;
 
 				title = editor.getSelection()
-				if (title === "") {
-					new TitleModal(this.app, "Title", (result) => {
-						title = result
-						new TitleModal(this.app, "Link", (result) => {
-							link = result
-							this.processTidyLink(editor, title, link)
-						}).open();
-					}).open();
-				} else {
-					new TitleModal(this.app, "Link", (result) => {
+				if (isNonEmptyString(title)) {
+					new InputModal(this.app, "Link", (result) => {
 						link = result
 						this.processTidyLink(editor, title, link)
+					}).open();
+				} else {
+					new InputModal(this.app, "Title", (result) => {
+						title = result
+						if (isNonEmptyString(title)) {
+							new InputModal(this.app, "Link", (result) => {
+								link = result
+								this.processTidyLink(editor, title, link)
+							}).open();
+						}
 					}).open();
 				}
 			}
 		});
-
 	}
 
-	// onunload() {
-	//
-	// }
-
+	// -----------------------------------------------------------------------
 	async processTidyLink(editor: Editor, title: string, link: string) {
 		console.log(`Title: ${title}, link: ${link}`);
-		if (isValidUrl(link)){
+		if (isNonEmptyString(title) && isNonEmptyString(link)) {
 			const anchor = `[${title}]`
 			editor.replaceSelection(anchor)
 			const tidylink = `\n${anchor}: ${link}`
 			editor.setLine(9999, tidylink);
 		} else {
-			console.log(`Invalid URL: ${link}`);
+			console.log("Title and/or Link can not be empty");
 		}
-
 
 	}
 }
-
-function isValidUrl(url: string): boolean {
-  try {
-    new URL(url);
-    return true;
-  } catch (error) {
-    return false;
-  }
+// -----------------------------------------------------------------------
+// isNonEmptyString
+// -----------------------------------------------------------------------
+function isNonEmptyString(str: string): boolean {
+    return str.trim().length > 0;
 }
